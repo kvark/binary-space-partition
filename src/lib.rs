@@ -1,3 +1,5 @@
+use std::cmp;
+
 pub enum PlaneCut<T> {
     Sibling(T),
     Cut {
@@ -31,6 +33,7 @@ where I: Iterator, I::Item: Plane {
     }
 }
 
+
 pub struct BspNode<T> {
     values: Vec<T>,
     front: Option<Box<BspNode<T>>>,
@@ -60,6 +63,18 @@ impl<T: Plane> BspNode<T> {
         }
     }
 
+    pub fn get_depth(&self) -> usize {
+        let df = match self.front {
+            Some(ref node) => node.get_depth(),
+            None => 0,
+        };
+        let db = match self.back {
+            Some(ref node) => node.get_depth(),
+            None => 0,
+        };
+        1 + cmp::max(df, db)
+    }
+
     pub fn order(&self, base: &T, out: &mut Vec<T>) {
         let (former, latter) = if base.is_aligned(&self.values[0]) {
             (&self.front, &self.back)
@@ -78,6 +93,7 @@ impl<T: Plane> BspNode<T> {
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -126,5 +142,19 @@ mod tests {
         let node = node_opt.unwrap();
         assert_eq!(node.values, vec![p1.clone()]);
         assert!(node.front.is_some() && node.back.is_some());
+    }
+
+    #[test]
+    fn test_insert_depth() {
+        let mut node = BspNode::new(Plane1D(0, true));
+        assert_eq!(node.get_depth(), 1);
+        node.insert(Plane1D(6, true));
+        assert_eq!(node.get_depth(), 2);
+        node.insert(Plane1D(8, true));
+        assert_eq!(node.get_depth(), 3);
+        node.insert(Plane1D(6, true));
+        assert_eq!(node.get_depth(), 3);
+        node.insert(Plane1D(-5, false));
+        assert_eq!(node.get_depth(), 3);
     }
 }
