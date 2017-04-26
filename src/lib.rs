@@ -92,21 +92,27 @@ impl<T: Plane> BspNode<T> {
             node.order(base, out);
         }
     }
+
+    pub fn order_self(&self, out: &mut Vec<T>) {
+        self.order(&self.values[0], out);
+    }
 }
 
 
 #[cfg(test)]
 mod tests {
+    extern crate rand;
     use super::*;
+    use self::rand::Rng;
 
     #[derive(Clone, Debug, PartialEq)]
     struct Plane1D(i32, bool);
 
     impl Plane for Plane1D {
         fn cut(&self, plane: Self) -> PlaneCut<Self> {
-            if plane.0 == self.0 {
+            if self.0 == plane.0 {
                 PlaneCut::Sibling(plane)
-            } else if self.is_aligned(&plane) {
+            } else if (self.0 > plane.0) == self.1 {
                 PlaneCut::Cut {
                     front: vec![plane],
                     back: vec![],
@@ -120,7 +126,7 @@ mod tests {
         }
 
         fn is_aligned(&self, plane: &Self) -> bool {
-            (self.0 >= plane.0) == self.1
+            self.1 == plane.1
         }
     }
 
@@ -156,5 +162,21 @@ mod tests {
         assert_eq!(node.get_depth(), 3);
         node.insert(Plane1D(-5, false));
         assert_eq!(node.get_depth(), 3);
+    }
+
+    #[test]
+    fn test_order() {
+        let mut rng = rand::thread_rng();
+        let mut node = BspNode::new(Plane1D(0, true));
+        for _ in 0 .. 100 {
+            let plane = Plane1D(rng.gen(), true);
+            node.insert(plane);
+        }
+
+        let mut out = Vec::new();
+        node.order_self(&mut out);
+        let mut out2 = out.clone();
+        out2.sort_by_key(|p| p.0);
+        assert_eq!(out, out2);
     }
 }
