@@ -1,69 +1,82 @@
+/*!
+Binary Space Partitioning (BSP)
+
+Provides an abstract `BspNode` abstraction, which can be seen as a tree.
+Useful for quickly ordering polygons along a particular view vector.
+Is not tied to a particular math library
+*/
+#![warn(missing_docs)]
+
 use std::cmp;
 
+
+/// The result of one plane being cut by another one.
+/// The "cut" here is an attempt to classify a plane as being
+/// in front or in the back of another one.
 pub enum PlaneCut<T> {
+    /// The planes are one the same geometrical plane.
     Sibling(T),
+    /// Planes are different, thus we can either determine that
+    /// our plane is completely in front/back of another one,
+    /// or split it into these sub-groups.
     Cut {
+        /// Sub-planes in front of the base plane.
         front: Vec<T>,
+        /// Sub-planes in the back of the base plane.
         back: Vec<T>,
     },
 }
 
+/// A plane abstracted to the matter of partitioning.
 pub trait Plane: Sized + Clone {
+    /// Try to cut a different plane by this one.
     fn cut(&self, Self) -> PlaneCut<Self>;
+    /// Check if a different plane is aligned in the same direction
+    /// as this one.
     fn is_aligned(&self, &Self) -> bool;
 }
 
-fn add_side<I>(side: &mut Option<Box<BspNode<I::Item>>>, mut iter: I)
-where I: Iterator, I::Item: Plane {
-    match *side {
-        None => {
-            if let Some(p) = iter.next() {
-                let mut node = BspNode::new(p);
-                for p in iter {
-                    node.insert(p)
-                }
-                *side = Some(Box::new(node));
-            }
+/// Add a list of planes to a particular front/end branch of some root node.
+fn add_side<T: Plane>(side: &mut Option<Box<BspNode<T>>>, mut planes: Vec<T>) {
+    if planes.len() != 0 {
+        if side.is_none() {
+            *side = Some(Box::new(BspNode::new()));
         }
-        Some(ref mut node) => {
-            for p in iter {
-                node.insert(p)
-            }
+        let mut node = side.as_mut().unwrap();
+        for p in planes.drain(..) {
+            node.insert(p)
         }
     }
 }
 
 
+/// A node in the `BspTree`, which can be considered a tree itself.
 pub struct BspNode<T> {
     values: Vec<T>,
     front: Option<Box<BspNode<T>>>,
     back: Option<Box<BspNode<T>>>,
 }
 
-impl<T: Plane> BspNode<T> {
-    pub fn new(value: T) -> Self {
+impl<T> BspNode<T> {
+    /// Create a new node.
+    pub fn new() -> Self {
         Self {
-            values: vec![value],
+            values: Vec::new(),
             front: None,
             back: None,
         }
     }
 
+    /// Check if this node is a leaf of the tree.
     pub fn is_leaf(&self) -> bool {
         self.front.is_none() && self.back.is_none()
     }
 
-    pub fn insert(&mut self, value: T) {
-        match self.values[0].cut(value) {
-            PlaneCut::Sibling(value) => self.values.push(value),
-            PlaneCut::Cut { mut front, mut back } => {
-                add_side(&mut self.front, front.drain(..));
-                add_side(&mut self.back, back.drain(..));
-            }
-        }
-    }
-
+    /// Get the tree depth starting with this node.
     pub fn get_depth(&self) -> usize {
+        if self.values.is_empty() {
+            return 0
+        }
         let df = match self.front {
             Some(ref node) => node.get_depth(),
             None => 0,
@@ -74,7 +87,28 @@ impl<T: Plane> BspNode<T> {
         };
         1 + cmp::max(df, db)
     }
+}
 
+impl<T: Plane> BspNode<T> {
+    /// Insert a value into the sub-tree starting with this node.
+    /// This operation may spawn additional leafs/branches of the tree.
+    pub fn insert(&mut self, value: T) {
+        if self.values.is_empty() {
+            self.values.push(value);
+            return
+        }
+        match self.values[0].cut(value) {
+            PlaneCut::Sibling(value) => self.values.push(value),
+            PlaneCut::Cut { front, back } => {
+                add_side(&mut self.front, front);
+                add_side(&mut self.back, back);
+            }
+        }
+    }
+
+    /// Build the draw order of this sub-tree into an `out` vector,
+    /// so that the contained planes are sorted front to back according
+    /// to the view vector given as the `base` plane normal.
     pub fn order(&self, base: &T, out: &mut Vec<T>) {
         let (former, latter) = if base.is_aligned(&self.values[0]) {
             (&self.front, &self.back)
@@ -91,10 +125,6 @@ impl<T: Plane> BspNode<T> {
         if let Some(ref node) = *latter {
             node.order(base, out);
         }
-    }
-
-    pub fn order_self(&self, out: &mut Vec<T>) {
-        self.order(&self.values[0], out);
     }
 }
 
@@ -135,16 +165,16 @@ mod tests {
     fn test_add_side() {
         let mut node_opt = None;
         let p0: Vec<Plane1D> = Vec::new();
-        add_side(&mut node_opt, p0.into_iter());
+        add_side(&mut node_opt, p0);
         assert!(node_opt.is_none());
 
         let p1 = Plane1D(1, true);
-        add_side(&mut node_opt, Some(p1.clone()).into_iter());
+        add_side(&mut node_opt, vec![p1.clone()]);
         assert_eq!(node_opt.as_ref().unwrap().values, vec![p1.clone()]);
         assert!(node_opt.as_ref().unwrap().is_leaf());
 
         let p23 = vec![Plane1D(0, false), Plane1D(2, false)];
-        add_side(&mut node_opt, p23.into_iter());
+        add_side(&mut node_opt, p23);
         let node = node_opt.unwrap();
         assert_eq!(node.values, vec![p1.clone()]);
         assert!(node.front.is_some() && node.back.is_some());
@@ -152,7 +182,9 @@ mod tests {
 
     #[test]
     fn test_insert_depth() {
-        let mut node = BspNode::new(Plane1D(0, true));
+        let mut node = BspNode::new();
+        assert_eq!(node.get_depth(), 0);
+        node.insert(Plane1D(0, true));
         assert_eq!(node.get_depth(), 1);
         node.insert(Plane1D(6, true));
         assert_eq!(node.get_depth(), 2);
@@ -167,14 +199,14 @@ mod tests {
     #[test]
     fn test_order() {
         let mut rng = rand::thread_rng();
-        let mut node = BspNode::new(Plane1D(0, true));
+        let mut node = BspNode::new();
         for _ in 0 .. 100 {
-            let plane = Plane1D(rng.gen(), true);
+            let plane = Plane1D(rng.gen(), rng.gen());
             node.insert(plane);
         }
 
         let mut out = Vec::new();
-        node.order_self(&mut out);
+        node.order(&Plane1D(0, true), &mut out);
         let mut out2 = out.clone();
         out2.sort_by_key(|p| p.0);
         assert_eq!(out, out2);
