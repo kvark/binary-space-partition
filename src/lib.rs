@@ -110,10 +110,10 @@ impl<T: Plane> BspNode<T> {
     /// so that the contained planes are sorted front to back according
     /// to the view vector given as the `base` plane normal.
     pub fn order(&self, base: &T, out: &mut Vec<T>) {
-        let (former, latter) = if base.is_aligned(&self.values[0]) {
-            (&self.front, &self.back)
-        } else {
-            (&self.back, &self.front)
+        let (former, latter) = match self.values.first() {
+            None => return,
+            Some(ref first) if base.is_aligned(first) => (&self.front, &self.back),
+            Some(_) => (&self.back, &self.front),
         };
 
         if let Some(ref node) = *former {
@@ -200,12 +200,16 @@ mod tests {
     fn test_order() {
         let mut rng = rand::thread_rng();
         let mut node = BspNode::new();
+        let mut out = Vec::new();
+
+        node.order(&Plane1D(0, true), &mut out);
+        assert!(out.is_empty());
+
         for _ in 0 .. 100 {
             let plane = Plane1D(rng.gen(), rng.gen());
             node.insert(plane);
         }
 
-        let mut out = Vec::new();
         node.order(&Plane1D(0, true), &mut out);
         let mut out2 = out.clone();
         out2.sort_by_key(|p| p.0);
