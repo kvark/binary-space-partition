@@ -1,9 +1,9 @@
 /*!
 Binary Space Partitioning (BSP)
 
-Provides an abstract `BspNode` abstraction, which can be seen as a tree.
+Provides an abstract `BspNode` structure, which can be seen as a tree.
 Useful for quickly ordering polygons along a particular view vector.
-Is not tied to a particular math library
+Is not tied to a particular math library.
 */
 #![warn(missing_docs)]
 
@@ -60,7 +60,7 @@ pub struct BspNode<T> {
 impl<T> BspNode<T> {
     /// Create a new node.
     pub fn new() -> Self {
-        Self {
+        BspNode {
             values: Vec::new(),
             front: None,
             back: None,
