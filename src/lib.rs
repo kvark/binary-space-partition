@@ -107,13 +107,13 @@ impl<T: Plane> BspNode<T> {
     }
 
     /// Build the draw order of this sub-tree into an `out` vector,
-    /// so that the contained planes are sorted front to back according
+    /// so that the contained planes are sorted back to front according
     /// to the view vector given as the `base` plane normal.
     pub fn order(&self, base: &T, out: &mut Vec<T>) {
         let (former, latter) = match self.values.first() {
             None => return,
-            Some(ref first) if base.is_aligned(first) => (&self.front, &self.back),
-            Some(_) => (&self.back, &self.front),
+            Some(ref first) if base.is_aligned(first) => (&self.back, &self.front),
+            Some(_) => (&self.front, &self.back),
         };
 
         if let Some(ref node) = *former {
@@ -142,7 +142,7 @@ mod tests {
         fn cut(&self, plane: Self) -> PlaneCut<Self> {
             if self.0 == plane.0 {
                 PlaneCut::Sibling(plane)
-            } else if (self.0 > plane.0) == self.1 {
+            } else if (plane.0 > self.0) == self.1 {
                 PlaneCut::Cut {
                     front: vec![plane],
                     back: vec![],
