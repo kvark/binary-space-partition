@@ -43,7 +43,7 @@ fn add_side<T: Plane>(side: &mut Option<Box<BspNode<T>>>, mut planes: Vec<T>) {
         if side.is_none() {
             *side = Some(Box::new(BspNode::new()));
         }
-        let mut node = side.as_mut().unwrap();
+        let node = side.as_mut().unwrap();
         for p in planes.drain(..) {
             node.insert(p)
         }
@@ -110,21 +110,22 @@ impl<T: Plane> BspNode<T> {
 
     /// Build the draw order of this sub-tree into an `out` vector,
     /// so that the contained planes are sorted back to front according
-    /// to the view vector defines as the `base` plane front direction.
+    /// to the view vector defined as the `base` plane front direction.
     pub fn order(&self, base: &T, out: &mut Vec<T>) {
         let (former, latter) = match self.values.first() {
             None => return,
-            Some(ref first) if base.is_aligned(first) => (&self.front, &self.back),
-            Some(_) => (&self.back, &self.front),
+            Some(ref first) if base.is_aligned(first) =>
+                (self.front.as_ref(), self.back.as_ref()),
+            Some(_) => (self.back.as_ref(), self.front.as_ref()),
         };
 
-        if let Some(ref node) = *former {
+        if let Some(ref node) = former {
             node.order(base, out);
         }
 
         out.extend_from_slice(&self.values);
 
-        if let Some(ref node) = *latter {
+        if let Some(ref node) = latter {
             node.order(base, out);
         }
     }
